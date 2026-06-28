@@ -25,6 +25,17 @@ L.tileLayer(
   }
 ).addTo(map);
 
+// Separate panes keep the gray context layer underneath the modeled risk layer.
+map.createPane("contextPane");
+map.createPane("riskPane");
+map.getPane("contextPane").style.zIndex = 410;
+map.getPane("riskPane").style.zIndex = 430;
+
+// Canvas tolerance makes thin road segments easier to hover/click
+// without forcing every visual line to become overly thick.
+const contextRenderer = L.canvas({ padding: 0.5, tolerance: 8 });
+const riskRenderer = L.canvas({ padding: 0.5, tolerance: 10 });
+
 if (typeof modeled_risk === "undefined") {
   console.error("modeled_risk is not loaded. Check the modeled risk JS data file.");
 }
@@ -143,7 +154,7 @@ function getBandColor(band) {
     case "Low":
       return "#9ecae1"; // pale blue
     default:
-      return "#8f969e"; // gray
+      return "#b8bec8"; // gray context
   }
 }
 
@@ -152,15 +163,15 @@ function getBandWeight(band) {
     case "Very High / Top 5%":
       return 3.0;
     case "High / Top 10%":
-      return 2.35;
+      return 2.45;
     case "Watchlist / Top 20%":
-      return 1.85;
+      return 2.0;
     case "Medium":
-      return 1.15;
+      return 1.55;
     case "Low":
-      return 0.75;
+      return 1.25;
     default:
-      return 0.45;
+      return 0.95;
   }
 }
 
@@ -171,7 +182,7 @@ function getRiskStyle(feature) {
   return {
     color: getBandColor(band),
     weight: getBandWeight(band),
-    opacity: band === "Low" ? 0.55 : 0.9,
+    opacity: band === "Low" ? 0.65 : 0.9,
     lineCap: "round",
     lineJoin: "round"
   };
@@ -179,9 +190,10 @@ function getRiskStyle(feature) {
 
 function getUnmodeledStyle() {
   return {
-    color: "#8f969e",
-    weight: 0.45,
-    opacity: 0.35,
+    color: "#b8bec8",
+    weight: 1.0,
+    opacity: 0.62,
+    dashArray: "2 4",
     lineCap: "round",
     lineJoin: "round"
   };
@@ -370,14 +382,22 @@ function onEachUnmodeledFeature(feature, layer) {
 }
 
 unmodeledLayer = L.geoJSON(unmodeled_risk, {
+  pane: "contextPane",
+  renderer: contextRenderer,
   style: getUnmodeledStyle,
   onEachFeature: onEachUnmodeledFeature
 }).addTo(map);
 
 modeledLayer = L.geoJSON(modeled_risk, {
+  pane: "riskPane",
+  renderer: riskRenderer,
   style: getRiskStyle,
   onEachFeature: onEachModeledFeature
 }).addTo(map);
+
+// Keep gray context visible but visually below the modeled risk overlay.
+unmodeledLayer.bringToBack();
+modeledLayer.bringToFront();
 
 // Fit map to data extent once layers are loaded.
 try {
